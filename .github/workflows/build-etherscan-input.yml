@@ -24,74 +24,10 @@ jobs:
       - name: Compile exact deployment source
         run: npm run compile
 
-      - name: Extract Solidity Standard JSON input
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          import path from "node:path";
-
-          const roots = ["artifacts", ".hh-cache", "cache"];
-          const files = [];
-
-          function walk(dir) {
-            if (!fs.existsSync(dir)) return;
-            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-              const p = path.join(dir, entry.name);
-              if (entry.isDirectory()) walk(p);
-              else if (entry.isFile() && p.endsWith(".json")) files.push(p);
-            }
-          }
-
-          for (const root of roots) walk(root);
-
-          let found = null;
-          let foundPath = null;
-
-          for (const file of files) {
-            try {
-              const obj = JSON.parse(fs.readFileSync(file, "utf8"));
-              const candidates = [
-                obj?.input,
-                obj?.solcInput,
-                obj?.buildInfo?.input,
-                obj?.compilationJob?.input
-              ].filter(Boolean);
-
-              for (const input of candidates) {
-                if (input?.sources?.["contracts/MallowMoth.sol"]) {
-                  found = input;
-                  foundPath = file;
-                  break;
-                }
-              }
-              if (found) break;
-            } catch {}
-          }
-
-          if (!found) {
-            console.error("Could not locate Hardhat compiler Standard JSON input.");
-            console.error("JSON files inspected:");
-            console.error(files.join("\n"));
-            process.exit(1);
-          }
-
-          fs.writeFileSync(
-            "etherscan-standard-input.json",
-            JSON.stringify(found, null, 2) + "\n"
-          );
-          fs.writeFileSync(
-            "etherscan-build-info-path.txt",
-            foundPath + "\n"
-          );
-          console.log("Extracted Standard JSON input from:", foundPath);
-          NODE
-
-      - name: Upload verification input
+      - name: Upload raw Hardhat build info
         uses: actions/upload-artifact@v4
         with:
-          name: etherscan-verification-input
-          path: |
-            etherscan-standard-input.json
-            etherscan-build-info-path.txt
+          name: maloth-hardhat-build-info
+          path: artifacts/build-info/*.json
           if-no-files-found: error
           retention-days: 30
