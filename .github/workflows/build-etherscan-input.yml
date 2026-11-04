@@ -1,0 +1,97 @@
+name: Build Etherscan Verification Input
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Compile exact deployment source
+        run: npm run compile
+
+      - name: Extract Solidity Standard JSON input
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+
+          const roots = ["artifacts", ".hh-cache", "cache"];
+          const files = [];
+
+          function walk(dir) {
+            if (!fs.existsSync(dir)) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const p = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(p);
+              else if (entry.isFile() && p.endsWith(".json")) files.push(p);
+            }
+          }
+
+          for (const root of roots) walk(root);
+
+          let found = null;
+          let foundPath = null;
+
+          for (const file of files) {
+            try {
+              const obj = JSON.parse(fs.readFileSync(file, "utf8"));
+              const candidates = [
+                obj?.input,
+                obj?.solcInput,
+                obj?.buildInfo?.input,
+                obj?.compilationJob?.input
+              ].filter(Boolean);
+
+              for (const input of candidates) {
+                if (input?.sources?.["contracts/MallowMoth.sol"]) {
+                  found = input;
+                  foundPath = file;
+                  break;
+                }
+              }
+              if (found) break;
+            } catch {}
+          }
+
+          if (!found) {
+            console.error("Could not locate Hardhat compiler Standard JSON input.");
+            console.error("JSON files inspected:");
+            console.error(files.join("\n"));
+            process.exit(1);
+          }
+
+          fs.writeFileSync(
+            "etherscan-standard-input.json",
+            JSON.stringify(found, null, 2) + "\n"
+          );
+          fs.writeFileSync(
+            "etherscan-build-info-path.txt",
+            foundPath + "\n"
+          );
+          console.log("Extracted Standard JSON input from:", foundPath);
+          NODE
+
+      - name: Upload verification input
+        uses: actions/upload-artifact@v4
+        with:
+          name: etherscan-verification-input
+          path: |
+            etherscan-standard-input.json
+            etherscan-build-info-path.txt
+          if-no-files-found: error
+          retention-days: 30
