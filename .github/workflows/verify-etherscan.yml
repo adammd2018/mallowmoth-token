@@ -50,4 +50,8 @@ jobs:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
         run: |
           test -n "$ETHERSCAN_API_KEY" || { echo "Missing ETHERSCAN_API_KEY secret"; exit 1; }
-          etherscan --chain 1 contractverification verify 0xbF5EB14695CD8B6EAC0c9CFE4eb39EB9aD77EaB7             --file etherscan-input.json             --codeformat solidity-standard-json-input             --contractname project/contracts/MallowMoth.sol:MallowMoth             --compilerversion v0.8.38+commit.1835d247
+          printf 'y\n' | etherscan --chain 1 contractverification verify 0xbF5EB14695CD8B6EAC0c9CFE4eb39EB9aD77EaB7 \
+            --file etherscan-input.json \
+            --codeformat solidity-standard-json-input \
+            --contractname project/contracts/MallowMoth.sol:MallowMoth \
+            --compilerversion v0.8.38+commit.1835d247
