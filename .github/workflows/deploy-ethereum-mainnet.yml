@@ -1,0 +1,54 @@
+name: Deploy MALOTH to Ethereum Mainnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type DEPLOY MALOTH to confirm Ethereum mainnet deployment'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ github.event.inputs.confirmation == 'DEPLOY MALOTH' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Compile contract
+        run: npm run compile
+
+      - name: Check deployment key
+        env:
+          DEPLOY_KEY: ${{ secrets.ETHEREUM_MAINNET_PRIVATE_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::Missing repository secret ETHEREUM_MAINNET_PRIVATE_KEY"
+            exit 1
+          fi
+
+      - name: Deploy MALOTH to Ethereum mainnet
+        env:
+          ETHEREUM_MAINNET_PRIVATE_KEY: ${{ secrets.ETHEREUM_MAINNET_PRIVATE_KEY }}
+        run: npm run deploy:ethereum
+
+      - name: Save deployment manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: maloth-ethereum-mainnet-deployment
+          path: deployments/ethereum-mainnet.json
+          if-no-files-found: error
+          retention-days: 90
